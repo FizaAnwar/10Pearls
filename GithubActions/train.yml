@@ -1,0 +1,48 @@
+# Example GitHub Actions workflow (place in .github/workflows/train.yml)
+name: AQI Pipeline
+on:
+  schedule:
+    - cron: '0 * * * *'        # hourly for features
+    - cron: '0 2 * * *'        # daily at 02:00 UTC for training
+  workflow_dispatch: {}
+
+jobs:
+  fetch-features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run feature script
+        run: python fetch_features.py --city Islamabad --start $(date -I -d '1 day ago') --end $(date -I) --api_keys '{}' 
+      - name: Upload features artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: features
+          path: data/features.csv
+
+  train:
+    runs-on: ubuntu-latest
+    needs: fetch-features
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: features
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Train model
+        run: python train_model.py --horizon_hours 72
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: models
+          path: models/
